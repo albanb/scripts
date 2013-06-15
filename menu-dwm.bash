@@ -5,7 +5,7 @@ source "$HOME/.config/themes/dmenu-theme"
 function power()
 {
 	#Infos a afficher
-	action=$(echo -e "eteindre\nredemarrer" | dmenu -i -fn $FONT -nf $NORMFGND -nb $NORMBGND -sb $SELBGND -sf $SELFGND)
+	action=$(echo -e "eteindre\nredemarrer\nfermer" | dmenu -i -fn $FONT -nf $NORMFGND -nb $NORMBGND -sb $SELBGND -sf $SELFGND)
 	#Launch tool
 	case $action in
 		"eteindre" )
@@ -13,6 +13,9 @@ function power()
 		;;
 		"redemarrer" )
 			reboot
+		;;
+		"exit" )
+			systemctl --user exit
 		;;
 	esac
 }
