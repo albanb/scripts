@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Copyright 2013 Markus Lux
 
 # This program is free software: you can redistribute it and/or modify
@@ -33,27 +32,31 @@
 # crypt the password file with.
 #
 # $PASS_LENGTH determines the length of generated passwords.
-
-PASS_FILE='/home/alban/.local/share/password.gpg' #FILL ME
+ENCRYPTED_PASS_FILE='/home/alban/.local/share/password.gpg' #FILL ME
+PASS_FILE='/tmp/password' #FILL ME
 GPG_IDENTITY='alban_brillat@yahoo.fr' #FILL ME
 PASS_LENGTH='15'
 source "$HOME/.config/themes/dmenu-theme"
 # ======================================================================
 
-
-
 # Returns all keys present in the password file.
 function getkeys
 {
-	gpg --no-tty --quiet -q -d "$PASS_FILE" | awk -F, '{print $1}' 
+	while IFS=$'\t' read -r site user passwd
+	do
+		passwords+=( ["$site"]="$user"$'\t'"$passwd" )
+	done < "$PASS_FILE" #<(gpg --no-tty --quiet -q -d "$PASS_FILE" | sed "/^$/d")
+	key=$(printf "%s\n" "${!passwords[@]}" | dmenu -i -fn $FONT -nf $NORMFGND -nb $NORMBGND -sb $SELBGND -sf $SELFGND -p "Select:")
+	login=${passwords[$key]}
+	user=${login%$'\t'*}
+	password=${login#*$'\t'}
 }
 
 # Gets a login as a string "user pass".
 function get
 {
-	if [[ -n "$1" ]]; then
-		gpg --no-tty --quiet -q -d "$PASS_FILE" | grep "^$1," | awk -F, '{print $2, $3}' 
-	fi
+	getkeys
+	echo -e "$user\n$password" | dmenu -i -fn $FONT -nf $NORMFGND -nb $NORMBGND -sb $SELBGND -sf $SELFGND 
 }
 
 # Adds an entry to the password file.
@@ -73,14 +76,15 @@ function add
 		return
 	fi
 
-	line=$site,$user,$pass
+	line="$site\t$user\t$pass"
 
 	passes=$(gpg --no-tty --quiet -d "$PASS_FILE")
 
 	if [[ $? -eq 0 ]]; then
 		passes+='\n'
 		passes+=$line
-		echo -e "$passes" | gpg -e -r $GPG_IDENTITY > "$PASS_FILE"
+		echo -e "$passes"  | gpg -e -r $GPG_IDENTITY > "$PASS_FILE"
+		echo -e "$passes"  > "$PASS_FILE" #| gpg -e -r $GPG_IDENTITY > "$PASS_FILE"
 	fi
 }
 
@@ -88,10 +92,18 @@ function add
 function del
 {
 	if [[ -n "$1" ]]; then
-		passes=$(gpg --no-tty --quiet -d "$PASS_FILE" | sed "/^$1,/d")
+		while IFS=$'\t' read -r site user passwd
+		do
+			if [[ "$site" != "$1" ]]
+			then
+				lines+=( "$site"$'\t'"$user"$'\t'"$passwd" )
+			fi
+		done < "$PASS_FILE"
 
-		if [[ $? -eq 0 ]]; then
-			echo -e "$passes" | gpg -e -r $GPG_IDENTITY > "$PASS_FILE"
+		if [[ $? -eq 0 ]]
+		then
+			printf "%s\n" "${lines[@]}" > "$PASS_FILE"
+#			echo -e "$passes" | gpg -e -r $GPG_IDENTITY > "$PASS_FILE"
 		fi
 	fi
 }
@@ -100,13 +112,7 @@ function del
 # by typing the credentials with user<tab>password<enter>.
 function fillbrowser
 {
-	keys=$(getkeys)
-	key=$(echo "$keys" | dmenu -i -fn $FONT -nf $NORMFGND -nb $NORMBGND -sb $SELBGND -sf $SELFGND -p "Select:")
-
-	login=$(get $key)
-	user=${login% *}
-	password=${login#* }
-
+	getkeys
 	if [[ -n "$user" ]]; then
 		xdotool type -- "$user"
 		xdotool key Tab
@@ -122,5 +128,6 @@ do
 	params="$params '$i'"
 done
 
+declare -A passwords
 # The script parameters determine which method gets called.
 eval "$params"
