@@ -1,0 +1,287 @@
+#!/bin/sh
+#   Script by Ypnose  <linuxien[AT]legtux[DOT]org>
+#   This script saves core config files for Archlinux in the specified folder
+#   If you want to use it, you may change $DIRS and files accordingly!
+#
+#   This program is free software; you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation; either version 2 of the License, or
+#   (at your option) any later version.
+#  
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#  
+#   You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#   MA 02110-1301, USA.
+#
+
+#DIR=/mnt/USB1/CONFSAVE
+DIR="$HOME/backup"
+DAT=$(date "+%d-%m-%Y")
+NEWFOL="$DIR/CONFS-$DAT"
+TARGZ=1
+ARCHIVE=0
+DF="$(tput sgr0)"
+RD="$(tput setaf 1)"
+GR="$(tput setaf 2)"
+YL="$(tput setaf 3)"
+BCY="$(tput bold; tput setaf 6)"
+REPERTOIRE_SOURCE="$HOME/"
+RACINE_DESTINATION="/media/5211529A04099FF7/sauvegarde/home/alban/"
+
+if [ -x "/usr/bin/bsdtar" ]; then
+    CMDARC="bsdtar -oczf"
+else
+    CMDARC="tar --format=ustar -czf"
+fi
+
+usage() {
+    printf "%s\n" "Usage: ${0##*/} [-d directory] [-hflorv]"
+    printf "%s\n" "  OPTIONS:"
+    printf "%s\n" "    -d     Save in the specified directory"
+    printf "%s\n" "    -h     Display help and quit"
+    printf "%s\n" "    -f     Disable archive compression"
+    printf "%s\n" "    -l     Save important files for Fedora setup"
+    printf "%s\n" "    -o     Overwrite existing tar.gz archive or directory"
+    printf "%s\n" "    -r     Synchronize files with external hard drive"
+    printf "%s\n" "    -v     Verbose ouput (print saved filenames)"
+}
+
+delete_backup() {
+# With -o argument, it overrides an existing folder / archive
+    if [ -d "$NEWFOL" ]; then
+        printf "$RD%s$DF\n" "Overwriting the existing backup folder!"
+        rm -R "$NEWFOL"
+    elif [ -e "$DIR/CONFS-$DAT.tar.gz" ]; then
+        printf "$RD%s$DF\n" "Overwriting the existing backup archive!"
+        rm "$DIR/CONFS-$DAT.tar.gz"
+    fi
+}
+
+limit_arch() {
+# It counts existing archives and delete the oldest file if the folder, contains more than (or equal) 5 files
+
+# >>Ypnose, for FILE in *; do [[ -f "$FILE" && "$FILE" -nt "$FNAME" ]] && typeset FNAME="$FILE"; done; print $FNAME
+    if [ -d "$DIR" ]; then
+        if [ "$((TARGZ))" -eq 1 ] && [ "$(find $DIR -type f -iname "CONFS*.tar.gz" | wc -l)" -ge 5 ]; then
+            printf "$RD%s\n%s$DF\n" "The directory contains more than 5 archives!" "Deleting the oldest archive"
+            cd "$DIR"
+            FILDEL="$(ls -1rt | head -1)"
+            rm -i "$FILDEL"
+        fi
+    else
+        printf "%s %s\n" '$DIR does not exist.' "Unable to check it"
+    fi
+}
+
+#Fonction permettant de s'assurer que le disque dur est en place avant l'archivage
+function ready
+{
+	# Détecter la présence du volume de destination et interrompre l'opération si nécessaire
+	while [ ! -e "$RACINE_DESTINATION" ]
+	do
+		#Si le volume de sauvegarde n'est pas présent on affiche un message demandant quoi faire	
+		printf "%s $RD$RACINE_DESTINATION$DF %s\n" "Le dossier de sauvegarde" "n'existe pas. Insère le disque dur de sauvegarde si tu veux sauvegarder. Disque monté? y/n"
+		read answer
+		if [ "$answer" != "y" ]
+		then
+			#On demande de repousser la sauvegarde		
+			printf "$RD%s$DF\n" "Attention la sauvegarde du dossier est repoussée"
+			exit 3
+		fi
+	done
+	printf "%s $GR$RACINE_DESTINATION$DF\n" "Sauvegarde dans le dossier"
+}
+
+#Fonction d'archivage proprement dite
+function archive
+{
+	if [ "$((ARCHIVE))" -eq 1 ]; then
+		ready
+		#Synchronisation des dossiers sources et destination
+		echo $REPERTOIRE_SOURCE
+		echo $RACINE_DESTINATION
+		rsync -rtD --exclude=".**" --exclude="/multimedia/videos/" --exclude="/sync/" --exclude="/dev/" --del --stats --progress $REPERTOIRE_SOURCE $RACINE_DESTINATION
+		rsync -rtD --include="/multimedia/" --exclude="/multimedia/videos/.divers/*" --include="/multimedia/videos/" --include="/multimedia/videos/**" --exclude="*" --stats --progress $REPERTOIRE_SOURCE $RACINE_DESTINATION
+		printf "%s\n" "La commande de sauvegarde a terminé son travail..."
+	fi
+}
+
+backup() {
+    if [ -d "$DIR" ]; then
+        printf "$GR%s\n$YL%s$DF\n" "The directory exists. It will be used for your configs." "Starting backup..."
+    else
+        printf "$RD%s$DF\n" "The directory does not exist. You should change DIR location!"
+        exit 1
+    fi
+    if [ -d "$NEWFOL" ] || [ -e "$DIR/CONFS-$DAT.tar.gz" ]; then
+        printf "$RD%s$DF\n" "WARNING: You already synchronised your files today!"
+        exit 1
+    else
+        mkdir -p "$NEWFOL"
+    fi
+    
+###########
+#Filesystem
+###########
+
+    BOOTF="/boot/syslinux/syslinux.cfg"
+    ETCF="/etc/fstab /etc/locale.conf /etc/locale.gen /etc/mkinitcpio.conf"
+    SUDOF="/etc/sudo.conf"
+    PACF="/etc/pacman.conf /etc/pacman.d/mirrorlist"
+    NETF="/etc/netctl/ethernet-static /etc/netctl/ethernet-dhcp /etc/netctl/wireless-open /etc/netctl/wireless-wpa /etc/netctl/wireless-wpa-dhcp-parents /etc/netctl/wireless-wpa-static"
+    MODF="/etc/modprobe.d/modprobe.conf /etc/modprobe.d/audio_power_save.conf"
+    XORGF="/etc/X11/xorg.conf.d/10-keyboard-layout.conf /etc/X11/xorg.conf.d/10-evdev.conf /etc/X11/xorg.conf.d/10-keyboard-terminate.conf /etc/X11/xorg.conf.d/10-quirks.conf /etc/X11/xorg.conf.d/50-synaptics.conf /etc/X11/xorg.conf.d/60-fonts.conf"
+    IPTABF="/etc/iptables/iptables.rules"
+
+    printf " ==> %s\n" "Saving filesystem files..."
+    if [ "$((VERBOSE))" -eq 1 ]; then
+        echo FOO
+    fi
+    for FILEFS in "$BOOTF $ETCF $SUDOF $PACF $NETF $MODF $XORGF $IPTABF"
+        do
+            cp $FILEFS $NEWFOL
+    done
+
+#Packages list
+    printf "%s - %s explicit packages\n\n" "$DAT" "$(pacman -Qe | wc -l)" > $NEWFOL/pacman_pkgs.out
+    pacman -Qe >> $NEWFOL/pacman_pkgs.out
+    printf "\n%s - %s external packages\n\n" "$DAT" "$(pacman -Qm | wc -l)" >> $NEWFOL/pacman_pkgs.out
+    pacman -Qm >> $NEWFOL/pacman_pkgs.out
+    printf "\n%s - %s packages\n\n" "$DAT" "$(pacman -Q | wc -l)" >> $NEWFOL/pacman_pkgs.out
+    pacman -Q >> $NEWFOL/pacman_pkgs.out
+
+#####
+#User
+#####
+
+    SHELF="$HOME/.bashrc $HOME/.bash_profile"
+    MISCF="$HOME/.gitconfig $HOME/.xinitrc $HOME/.tickr/tickr-url-list $HOME/.urlview $HOME/.vimrc $HOME/.local/share/password.gpg $HOME/.config/tmux.conf $HOME/.config/Xresources $HOME/.config/lftp/rc $HOME/.config/interrobang/config \
+	    $HOME/.local/share/todo/todo.txt"
+#####
+    OPTF="$HOME/.vim/ $HOME/.mutt/ $HOME/.config/ranger/ $HOME/.config/moc/ $HOME/.config/themes/ $HOME/.config/systemd/ $HOME/.config/tmux/ $HOME/.config/dwb/ $HOME/.config/todo $HOME/.config/transmission-daemon/ $HOME/.local/gnupg/"
+    ARCF="$HOME/dev/build/"
+    
+    printf " ==> %s\n" "Saving user defined files..."
+    for UFILES in "$SHELF $MISCF"
+        do
+            cp $UFILES $NEWFOL
+    done
+
+    if [ -n "$FIREF" ] && [ -d "$FIREF/" ]; then
+        cp $FIREF/prefs.js $NEWFOL
+        printf " ==> $YL%s$DF\n" "Firefox profile found!"
+            if [ -d "$FIREF/searchplugins" ]; then
+                mkdir -p $NEWFOL/FFox
+                cp -r $FIREF/searchplugins $NEWFOL/FFox/searchplugins
+            fi
+    else
+        printf " ==> $YL%s$DF\n" "No Firefox profile found!"
+    fi
+
+#Option
+    if [ -n "$OPTF" ]; then
+        printf " ==> %s\n" "Optional files will be saved!"
+        mkdir -p $NEWFOL/OPT
+        cp -r $OPTF $NEWFOL/OPT
+    else
+        printf " ==> %s\n" "No optional files defined!"
+    fi
+
+#SSH
+    if [ -n "$SHF" ] && [ -d "$HOME/$SHF" ]; then
+        cd $HOME
+        $CMDARC $NEWFOL/SSH.tar.gz $SHF
+    fi
+
+    if [ -n "$ARCF" ] && [ -d "$HOME/$ARCF" ]; then
+        if [ -z "$(du -sh $HOME/$ARCF -t -50M)" ]; then
+            printf "%s %s\n" "Folder too big." "Builds isn't saved"
+        else
+            cd $HOME
+            $CMDARC $NEWFOL/builds.tar.gz $ARCF
+        fi
+    fi
+
+    printf " ==>$DF The script saved $BCY%d$DF files\n" "$(find $NEWFOL -type f | wc -l)"
+
+    if [ "$((TARGZ))" -eq 1 ]; then
+        cd $DIR
+        tar -czf "CONFS-$DAT".tar.gz "CONFS-$DAT"
+        if [ "$?" -eq 0 ]; then
+            printf "$GR%s$DF\n" "Archive has been successfully created"
+        else
+            printf "$RD%s$DF\n" "Archive creation has failed!"
+        fi
+        rm -R $NEWFOL
+    else
+        printf "$YL%s$DF\n" "Archive option turned off!"
+    fi
+
+    printf "$GR%s$DF\n" "Done."
+}
+
+# WORK IN PROGRESS!
+backup_laptop() {
+    SYSF="/usr/bla/hdparm.service"
+    BASHF="$HOME/.bashrc $HOME/.bash_profile"
+    BINF="$HOME/.bin/"
+    
+    printf "$YL%s$DF\n" "The following files will be saved:"
+    printf "   %s\n" ""$SYSF $BASHF""
+
+    #for FILES in "$SYSF $BASHF"
+        #do
+            #cp $FILES $NEWFOL
+        #done
+}
+#------------------
+
+#Arguments
+while getopts ":d:hforlv" option; do
+    case $option in
+        d)
+          unset DIR NEWFOL
+          DIR="$OPTARG"
+          NEWFOL="$DIR/CONFS-$DAT"
+          ;;
+        h)
+          usage
+          exit 1
+          ;;
+        f)
+          TARGZ=0
+          ;;
+        o)
+          delete_backup
+          ;;
+        r)
+	  ARCHIVE=1
+          ;;
+        l)
+          limit_arch
+          backup_laptop
+          exit 0
+          ;;
+        v)
+          VERBOSE=1
+          ;;
+        :)
+          printf "Option %s requires an argument.\n" "-$OPTARG"
+          exit 1
+          ;;
+        ?)
+          printf "Invalid option: %s\n" "-$OPTARG"
+          exit 1
+          ;;
+    esac
+done
+
+limit_arch
+backup
+archive
+exit 0
