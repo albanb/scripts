@@ -161,13 +161,14 @@ backup() {
 
     SHELF="$HOME/.bashrc $HOME/.bash_profile"
     MISCF="$HOME/.gitconfig $HOME/.xinitrc $HOME/.tickr/tickr-url-list $HOME/.urlview $HOME/.vimrc $HOME/.local/share/password.gpg $HOME/.config/tmux.conf $HOME/.config/Xresources $HOME/.config/lftp/rc $HOME/.config/interrobang/config \
-	    $HOME/.local/share/todo/todo.txt"
+	    $HOME/.local/share/todo/todo.txt $HOME/.config/dunst/dunstrc"
+    BUILDF="$HOME/dev/build/loliclip/lolictrl $HOME/dev/build/dwmstatus-git/dwmstatus.h"
 #####
     OPTF="$HOME/.vim/ $HOME/.mutt/ $HOME/.config/ranger/ $HOME/.config/moc/ $HOME/.config/themes/ $HOME/.config/systemd/ $HOME/.config/tmux/ $HOME/.config/dwb/ $HOME/.config/todo $HOME/.config/transmission-daemon/ $HOME/.local/gnupg/"
     ARCF="$HOME/dev/build/"
     
     printf " ==> %s\n" "Saving user defined files..."
-    for UFILES in "$SHELF $MISCF"
+    for UFILES in "$SHELF $MISCF $BUILDF"
         do
             cp $UFILES $NEWFOL
     done

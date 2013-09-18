@@ -58,26 +58,7 @@ function umount()
 	udiskie-umount -s $action
 }
 
-function notifications()
-{
-	LINE="15"
-	LIST="torrent\ncal"
-
-	action=$(echo -e $LIST | dmenu -i -fn $FONT -nf $NORMFGND -nb $NORMBGND -sb $SELBGND -sf $SELFGND)
-
-	case $action in
-		"torrent" )
-			actions=$(grep "$1" $HOME/.local/share/dwm/notification | cut -d";" -f2| dmenu -i -l $LINE | sed -e "s/\[/\\\[/" -e "s/\]/\\\]/")
-			sed "/$actions/d" $HOME/.local/share/dwm/notification | sponge $HOME/.local/share/dwm/notification
-		;;
-		"cal" )
-			actions=$(grep "$1" $HOME/.local/share/dwm/notification | cut -d";" -f2| dmenu -i -l $LINE | sed -e "s/\[/\\\[/" -e "s/\]/\\\]/")
-			sed "/$actions/d" $HOME/.local/share/dwm/notification | sponge $HOME/.local/share/dwm/notification
-		;;
-	esac
-}
-
 #Infos a afficher
-action=$(echo -e "power\ntodo\numount\nnotifications" | dmenu -i -fn $FONT -nf $NORMFGND -nb $NORMBGND -sb $SELBGND -sf $SELFGND) 
+action=$(echo -e "power\ntodo\numount" | dmenu -i -fn $FONT -nf $NORMFGND -nb $NORMBGND -sb $SELBGND -sf $SELFGND) 
 #Launch tool
 $action

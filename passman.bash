@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2013 Markus Lux
+# Copyright 2013 Markus Lux modified by Alban Brillat
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -39,6 +39,12 @@ PASS_LENGTH='15'
 source "$HOME/.config/themes/dmenu-theme"
 # ======================================================================
 
+# Reload the encrypted file as a decrypted file in RAM
+function reload
+{
+	gpg --no-tty --quiet -d "$ENCRYPTED_PASS_FILE" > "$PASS_FILE"
+}
+
 # Returns all keys present in the password file.
 function getkeys
 {
@@ -56,7 +62,8 @@ function getkeys
 function get
 {
 	getkeys
-	echo -e "$user\n$password" | dmenu -i -fn $FONT -nf $NORMFGND -nb $NORMBGND -sb $SELBGND -sf $SELFGND 
+	type=$(echo -e "$user\n$password" | dmenu -i -fn $FONT -nf $NORMFGND -nb $NORMBGND -sb $SELBGND -sf $SELFGND)
+	xdotool type -- "$type"
 }
 
 # Adds an entry to the password file.
@@ -78,13 +85,13 @@ function add
 
 	line="$site\t$user\t$pass"
 
-	passes=$(gpg --no-tty --quiet -d "$PASS_FILE")
+	passes=$(gpg --no-tty --quiet -d "$ENCRYPTED_PASS_FILE")
 
 	if [[ $? -eq 0 ]]; then
 		passes+='\n'
 		passes+=$line
-		echo -e "$passes"  | gpg -e -r $GPG_IDENTITY > "$PASS_FILE"
-		echo -e "$passes"  > "$PASS_FILE" #| gpg -e -r $GPG_IDENTITY > "$PASS_FILE"
+		echo -e "$passes" | gpg -e -r $GPG_IDENTITY > "$ENCRYPTED_PASS_FILE"
+		echo -e "$passes" > "$PASS_FILE" #| gpg -e -r $GPG_IDENTITY > "$PASS_FILE"
 	fi
 }
 
@@ -98,12 +105,12 @@ function del
 			then
 				lines+=( "$site"$'\t'"$user"$'\t'"$passwd" )
 			fi
-		done < "$PASS_FILE"
+		done < <(gpg --no-tty --quiet -d "$ENCRYPTED_PASS_FILE")
 
 		if [[ $? -eq 0 ]]
 		then
 			printf "%s\n" "${lines[@]}" > "$PASS_FILE"
-#			echo -e "$passes" | gpg -e -r $GPG_IDENTITY > "$PASS_FILE"
+			printf "%s\n" "${lines[@]}" | gpg -e -r $GPG_IDENTITY > "$ENCRYPTED_PASS_FILE"
 		fi
 	fi
 }
@@ -116,9 +123,9 @@ function fillbrowser
 	if [[ -n "$user" ]]; then
 		xdotool type -- "$user"
 		xdotool key Tab
+		xdotool type -- "$password"
+		xdotool key Return
 	fi
-	xdotool type -- "$password"
-	xdotool key Return
 }
 
 # This has to be done to allow empty parameters (e.g. for user-less logins).
